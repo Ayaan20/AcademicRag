@@ -1,0 +1,32 @@
+# ── HuggingFace & PyTorch Models ──
+models/
+src/chunking/models/*.pt
+
+# ── Large Datasets & Raw PDFs (Use sample datasets or external storage) ──
+parsed_pdf/
+src/chunking/training_data/
+train_set_100papers.json
+evaluation_set_100papers.json
+*.zip
+*.tar.gz
+
+# ── FAISS Indices & Vector Outputs ──
+src/embedding/output/
+src/chunking/output/
+
+# ── Evaluation Result dumps ──
+eval_results/*.json
+
+# ── Environment & Logs ──
+.env
+logs/
+
+# ── Python Cache & OS metadata ──
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.DS_Store
+__MACOSX/
+.vscode/
+.idea/
