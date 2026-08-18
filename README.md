@@ -1,10 +1,5 @@
 # Academic Paper RAG: Hybrid Retrieval & Cross-Encoder Reranking
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
-[![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face-orange)](https://huggingface.co/)
-[![FAISS](https://img.shields.io/badge/FAISS-Dense%20Search-green)](https://github.com/facebookresearch/faiss)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An end-to-end, high-precision Retrieval-Augmented Generation (RAG) system specialized for academic literature search and question answering. The pipeline implements **multi-granularity chunking**, a **Mix-of-Granularity (MoG) router**, **three-way hybrid retrieval** (Dense FAISS + BGE-M3 Lexical + BM25) fused via **Reciprocal Rank Fusion (RRF)**, **Cross-Encoder reranking**, **hierarchical context expansion**, and local open-weight generation via **Ollama**.
 
@@ -112,45 +107,4 @@ Comprehensive ablation experiments were executed across a held-out benchmark of 
 
 ---
 
-## 🛠️ Quick Start
 
-### 1. Installation
-
-```bash
-git clone https://github.com/<your-username>/ScholarRAG.git
-cd ScholarRAG
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 2. Download Pretrained Models & Setup Ollama
-
-```bash
-# Pull local LLM
-ollama pull llama3.2:3b
-
-# Download embedding and reranking models
-python download_models.py
-```
-
-### 3. Build Vector Indices
-
-```bash
-python rebuild_index.py --data_dir ./parsed_pdf
-```
-
-### 4. Run Retrieval & Generation
-
-```bash
-# Terminal Query
-python final_pipeline.py --query "What are the key limitations of LoRA fine-tuning mentioned in the paper?"
-
-# Launch Web UI
-python web_app.py
-```
-
----
-
-## 📜 License
-Distributed under the MIT License. See `LICENSE` for details.
