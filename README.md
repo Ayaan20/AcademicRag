@@ -88,9 +88,23 @@ It reproduces the ScholarRAG academic-paper RAG pipeline, replaces its hosted LL
 | Hybrid (Dense + Sparse + BM25, RRF) | `--retriever hybrid --no-reranker` |
 | Hybrid + cross-encoder reranker | `--retriever hybrid` |
 
-Results are written to `eval_results/ablation_retrieval.{csv,md}`. *Numbers will be added here after the GPU run; the index rebuild needs a GPU (BGE-M3 over ~26k chunks).*
+Results (`eval_results/ablation_retrieval.{csv,md}`, Kaggle T4, index rebuilt from scratch: 26,329 chunks):
 
-### Full pipeline (hybrid + reranker), earlier run
+| Configuration | Questions | Hit@10 | MRR@10 | R@1 | R@3 | R@5 | R@10 | s/question |
+|---|---|---|---|---|---|---|---|---|
+| BM25 only | 204 | 0.971 | 0.915 | 0.882 | 0.951 | 0.961 | 0.971 | 0.0 |
+| Dense only (FAISS + BGE-M3) | 204 | 0.931 | 0.889 | 0.863 | 0.912 | 0.931 | 0.931 | 0.3 |
+| Hybrid (Dense + Sparse + BM25, RRF) | 204 | 0.956 | 0.919 | 0.892 | 0.936 | 0.951 | 0.956 | 0.7 |
+| Hybrid + cross-encoder reranker | 204 | 0.936 | 0.885 | 0.848 | 0.926 | 0.936 | 0.936 | 5.0 |
+
+**Findings**
+- **BM25 alone has the best coverage** (Hit@10 0.971, R@5 0.961). The questions name paper-specific entities (model names, datasets, benchmarks), so exact lexical match is a very strong signal, and relevance is judged at paper level.
+- **Dense-only is weakest** (MRR 0.889): semantic similarity blurs rare technical names across papers on similar topics.
+- **Hybrid RRF gives the best ranking at the top** (MRR 0.919, R@1 0.892, both the highest of the four) and closes most of the coverage gap over dense (+0.025 Hit@10), but its Hit@10 stays below BM25 alone because RRF also averages in the weaker dense ranking.
+- **The cross-encoder reranker lowers paper-level metrics** (MRR 0.919 → 0.885) at ~7× the latency. A likely reason (not yet verified per question): `bge-reranker-base` truncates at 512 tokens and scores passage-level topical relevance, so it can promote on-topic passages from *other* papers, which a paper-level metric counts as misses. Its benefit, if any, would show in passage-level relevance or answer quality, which this benchmark does not measure.
+- Takeaway: with paper-level labels on entity-heavy questions, lexical signals dominate; fusion helps precision at rank 1 but not coverage; RRF weights tuned towards BM25, or a reranker fine-tuned on in-domain pairs, are the obvious next steps.
+
+### Full pipeline (hybrid + reranker), original release run
 
 | Set | Questions | Hit@10 | MRR@10 | R@1 | R@3 | R@5 |
 |---|---|---|---|---|---|---|
@@ -104,6 +118,8 @@ LLM-judged answer quality on the held-out set (1–5 scale): faithfulness 4.25, 
 - Paper-level relevance overstates passage-level retrieval quality.
 - Train and held-out questions are about the same 100 papers (held-out *questions*, not held-out papers).
 - The three chunk granularities currently have similar sizes.
+- All four ablation settings share a keyword-overlap evidence re-scoring step after retrieval, which may favour lexical retrieval.
+- Single run on one question set; no confidence intervals (204 questions → ±~2–3 points on Hit@10).
 - Answer-quality scores use an LLM judge (`llm_evaluator.py`), which has its own biases.
 
 ---

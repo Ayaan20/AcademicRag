@@ -1,0 +1,5 @@
+configuration,questions,hit_rate,mrr,recall@1,recall@3,recall@5,recall@10,sec_per_question
+BM25 only,204,0.9706,0.9152,0.8824,0.951,0.9608,0.9706,0.0
+Dense only (FAISS + BGE-M3),204,0.9314,0.8892,0.8627,0.9118,0.9314,0.9314,0.3
+"Hybrid (Dense + Sparse + BM25, RRF)",204,0.9559,0.9187,0.8922,0.9363,0.951,0.9559,0.7
+Hybrid + cross-encoder reranker,204,0.9363,0.8854,0.848,0.9265,0.9363,0.9363,5.0
