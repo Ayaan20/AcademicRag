@@ -14,7 +14,9 @@ def configure_hf_environment() -> None:
     os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
     os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "600")
     os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "60")
-    os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+    # Opt-in mirror (e.g. inside mainland China): export HF_USE_MIRROR=1
+    if os.environ.get("HF_USE_MIRROR") == "1":
+        os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 
 def _is_ready_model_dir(path: Path) -> bool:

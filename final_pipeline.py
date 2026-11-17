@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from openai import OpenAI
+from src.rag.local_llm import build_chat_client
 from dotenv import load_dotenv
 
 from src.chunking.adaptive_router import AdaptiveRouter
@@ -114,12 +115,9 @@ def score_interactive_evidence(query: str, result) -> float:
     return score
 
 
-def build_llm_client() -> Optional[OpenAI]:
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-    if not api_key:
-        print(f"[Warning] 未设置 DEEPSEEK_API_KEY。可在环境变量中设置，或写入 {ENV_PATH}")
-        return None
-    return OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+def build_llm_client():
+    """Locally served open-weight model via Ollama (see src/rag/local_llm.py)."""
+    return build_chat_client()
 
 
 def main():
@@ -127,7 +125,7 @@ def main():
     print("ScholarRAG 启动中...")
     print("=" * 60)
 
-    client = build_llm_client()
+    client, llm_model = build_llm_client()
 
     metadata_path = EMBEDDING_OUTPUT_DIR / "unified_metadata.json"
     sparse_path = EMBEDDING_OUTPUT_DIR / "unified_sparse.pkl"
@@ -223,14 +221,15 @@ def main():
         messages = prompt_template.build_qa_messages(query, contexts)
 
         if client is None:
-            print("[3/3] 未设置 API Key，已跳过答案生成。请先设置 DEEPSEEK_API_KEY 后重试。")
+            print("[3/3] LLM backend unavailable; start Ollama (ollama serve) and retry.")
             print("-" * 60)
             continue
 
-        print("[3/3] 正在生成最终回答 (deepseek-reasoner)...")
+        print(f"[3/3] Generating answer locally ({llm_model})...")
 
         response = client.chat.completions.create(
-            model="deepseek-reasoner",
+            model=llm_model,
+            temperature=0.2,
             messages=messages,
             stream=True,
         )

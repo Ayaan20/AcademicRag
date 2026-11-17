@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from dotenv import load_dotenv
 from openai import OpenAI
+from src.rag.local_llm import build_chat_client
 
 # Project root
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -170,14 +171,8 @@ class RAGPipeline:
             self.router = RoutedGranularitySelector()
             self.prompt_template = PromptTemplate()
 
-            # LLM client (DeepSeek)
-            api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-            if api_key:
-                self.client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-                print("[LLM] DeepSeek API connected")
-            else:
-                self.client = None
-                print("[LLM] WARNING: DEEPSEEK_API_KEY not set")
+            # LLM client: locally served open-weight model via Ollama
+            self.client, self.llm_model = build_chat_client()
 
             self.ready = True
             print("=" * 60)
@@ -258,7 +253,7 @@ class RAGPipeline:
 
         # Step 5: Generate answer with LLM
         if not self.client:
-            yield f"data: {json.dumps({'type': 'error', 'content': 'LLM API key not configured'})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Local LLM backend not available (is Ollama running?)'})}\n\n"
             return
 
         yield f"data: {json.dumps({'type': 'status', 'step': 'generate'})}\n\n"
@@ -278,9 +273,10 @@ class RAGPipeline:
 
         try:
             response = self.client.chat.completions.create(
-                model="deepseek-reasoner",
+                model=self.llm_model,
                 messages=messages,
                 stream=True,
+                temperature=0.2,
             )
 
             for chunk in response:

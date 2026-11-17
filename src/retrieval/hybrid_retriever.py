@@ -62,13 +62,14 @@ class HybridRetriever:
         granularity_filter: Optional[str] = None,
     ) -> List[RetrievalResult]:
         """混合检索"""
-        # 分别检索，各取 top_k 个
+        # 分别检索，各取 top_k 个 (weight == 0 → channel skipped, so single-channel
+        # ablations are not padded with zero-score chunks from the disabled channel)
         dense_results = self.dense.retrieve(
             query, top_k=top_k, granularity_filter=granularity_filter
-        )
+        ) if self.dense_weight > 0 else []
         bm25_results = self.bm25.retrieve(
             query, top_k=top_k, granularity_filter=granularity_filter
-        )
+        ) if self.bm25_weight > 0 else []
 
         # RRF 融合
         rrf_scores: Dict[str, float] = {}
@@ -81,7 +82,7 @@ class HybridRetriever:
             result_map[r.chunk_id] = r
 
         # BGE-M3 Sparse
-        if self.sparse:
+        if self.sparse and self.sparse_weight > 0:
             sparse_results = self.sparse.retrieve(
                 query, top_k=top_k, granularity_filter=granularity_filter
             )

@@ -532,10 +532,10 @@ class RAGPipeline:
 
 def create_pipeline(
     embedding_output_dir: str = "src/embedding/output",
-    model_name: str = "deepseek-chat",
+    model_name: str = "qwen2.5:7b-instruct",   # local open-weight model via Ollama
     provider: str = "openai_compatible",
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: Optional[str] = "ollama",
+    base_url: Optional[str] = "http://localhost:11434/v1",
     use_hybrid: bool = True,
     use_reranker: bool = True,
     dense_weight: float = 0.4,

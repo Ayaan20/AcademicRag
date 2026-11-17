@@ -32,6 +32,7 @@ from typing import Dict, List, Optional
 import torch
 from dotenv import load_dotenv
 from openai import OpenAI
+from src.rag.local_llm import build_chat_client
 
 # 项目根目录
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -180,10 +181,21 @@ class RAGEvaluator:
         },
     }
 
+    # Retrieval ablation modes: channel weights (dense, sparse, bm25) fed to RRF.
+    RETRIEVER_MODES = {
+        "bm25":   (0.0, 0.0, 1.0),
+        "dense":  (1.0, 0.0, 0.0),
+        "hybrid": None,   # 3-way RRF with the per-query-type policy weights
+    }
+
     def __init__(self, use_reranker: bool = True, use_llm: bool = True,
-                 use_sparse: bool = True):
+                 use_sparse: bool = True, retriever_mode: str = "hybrid"):
         load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
         self.use_llm = use_llm
+        if retriever_mode not in self.RETRIEVER_MODES:
+            raise ValueError(f"retriever_mode must be one of {list(self.RETRIEVER_MODES)}")
+        self.retriever_mode = retriever_mode
+        print(f"[Ablation] retriever mode = {retriever_mode} | reranker = {use_reranker}")
 
         embed_dir = str(PROJECT_ROOT / "src" / "embedding" / "output")
         metadata_path = str(PROJECT_ROOT / "src" / "embedding" / "output" / "unified_metadata.json")
@@ -239,13 +251,10 @@ class RAGEvaluator:
 
         # LLM Client
         self.client = None
+        self.llm_model = None
         if use_llm:
-            api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-            if api_key:
-                self.client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-                print("DeepSeek API 已连接")
-            else:
-                print("未设置 DEEPSEEK_API_KEY，跳过答案生成")
+            # Locally served open-weight model via Ollama (see src/rag/local_llm.py)
+            self.client, self.llm_model = build_chat_client()
 
         # Context Expander —— 仅在需要生成答案时才启用
         self.context_expander = None
@@ -321,6 +330,9 @@ class RAGEvaluator:
             "max_evidence": 6,
         }
         policy.update(self.QUERY_POLICIES.get(classification.query_type, {}))
+        forced = self.RETRIEVER_MODES[self.retriever_mode]
+        if forced is not None:
+            policy["dense_weight"], policy["sparse_weight"], policy["bm25_weight"] = forced
         return policy
 
     def _temporary_set_hybrid_weights(self, dense_weight: float, sparse_weight: float, bm25_weight: float):
@@ -668,13 +680,14 @@ class RAGEvaluator:
         return selected
 
     def _call_llm(self, messages: List[Dict[str, str]], max_retries: int = 3) -> str:
-        """统一封装 DeepSeek 调用（带重试）"""
+        """Local LLM call (Ollama, OpenAI-compatible) with retries"""
         for attempt in range(max_retries):
             try:
                 response = self.client.chat.completions.create(
-                    model="deepseek-reasoner",
+                    model=self.llm_model,
                     messages=messages,
                     stream=False,
+                    temperature=0.2,
                     timeout=180,
                     max_tokens=2048,
                 )
@@ -1241,19 +1254,21 @@ def main():
                         help="不使用 Sparse Retriever (更快, 二路检索)")
     parser.add_argument("--sample", type=int, default=None,
                         help="分层抽样 N 题 (按题型×难度均匀抽取)")
+    parser.add_argument("--retriever", choices=["bm25", "dense", "hybrid"], default="hybrid",
+                        help="Retrieval ablation: BM25 only / dense FAISS only / 3-way RRF hybrid")
 
     args = parser.parse_args()
 
     # --no-llm 时自动启用轻量模式: 禁用 Sparse + ContextExpander + ROUGE/F1
-    use_sparse = not args.no_sparse
-    if args.no_llm and not args.no_sparse:
-        print("[轻量模式] --no-llm 下已自动禁用 Sparse Retriever")
-        use_sparse = False
+    # Sparse (BGE-M3 lexical) is only needed for the hybrid mode. It used to be
+    # silently disabled under --no-llm, which made "hybrid" retrieval-only runs 2-way.
+    use_sparse = (args.retriever == "hybrid") and not args.no_sparse
 
     evaluator = RAGEvaluator(
         use_reranker=not args.no_reranker,
         use_llm=not args.no_llm,
         use_sparse=use_sparse,
+        retriever_mode=args.retriever,
     )
 
     # 分层抽样
